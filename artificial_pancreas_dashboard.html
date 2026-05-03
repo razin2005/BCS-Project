@@ -1,0 +1,1701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Closed Loop Insulin Delivery System — Artificial Pancreas</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&family=Playfair+Display:wght@600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+/* ─────────────────────────────────────────────
+   CSS VARIABLES & RESET
+───────────────────────────────────────────── */
+:root {
+  --bg:         #f0f4f8;
+  --surface:    #ffffff;
+  --surface2:   #e8f0f7;
+  --border:     #d0dce8;
+  --teal:       #0ea5a0;
+  --teal-light: #e0f5f4;
+  --teal-mid:   #4dc4bf;
+  --blue:       #2563eb;
+  --blue-light: #dbeafe;
+  --green:      #16a34a;
+  --green-light:#dcfce7;
+  --amber:      #d97706;
+  --amber-light:#fef3c7;
+  --red:        #dc2626;
+  --red-light:  #fee2e2;
+  --text:       #1e293b;
+  --text-muted: #64748b;
+  --text-faint: #94a3b8;
+  --radius:     14px;
+  --shadow:     0 2px 16px rgba(14,165,160,0.08);
+  --shadow-lg:  0 8px 32px rgba(14,165,160,0.14);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* ─────────────────────────────────────────────
+   SIDEBAR NAV
+───────────────────────────────────────────── */
+.sidebar {
+  position: fixed;
+  top: 0; left: 0;
+  width: 220px;
+  height: 100vh;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 28px 0 20px;
+  z-index: 100;
+  box-shadow: 2px 0 12px rgba(0,0,0,0.04);
+}
+
+.sidebar-logo {
+  padding: 0 20px 24px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+
+.sidebar-logo .logo-icon {
+  width: 38px; height: 38px;
+  background: linear-gradient(135deg, var(--teal), var(--blue));
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+  margin-bottom: 10px;
+  box-shadow: 0 4px 12px rgba(14,165,160,0.3);
+}
+
+.sidebar-logo h2 {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--teal);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  line-height: 1.3;
+}
+
+.nav-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 10px 20px 6px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 20px;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 13.5px;
+  font-weight: 500;
+  border-left: 3px solid transparent;
+  transition: all 0.18s;
+  cursor: pointer;
+}
+.nav-item:hover, .nav-item.active {
+  color: var(--teal);
+  background: var(--teal-light);
+  border-left-color: var(--teal);
+}
+.nav-item .nav-icon { font-size: 15px; width: 18px; text-align: center; }
+
+.sidebar-bottom {
+  margin-top: auto;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+}
+.status-dot {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--text-muted); font-weight: 500;
+}
+.dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 3px var(--green-light);
+  animation: pulse-dot 2s infinite;
+}
+@keyframes pulse-dot {
+  0%, 100% { box-shadow: 0 0 0 3px var(--green-light); }
+  50%       { box-shadow: 0 0 0 6px rgba(22,163,74,0.1); }
+}
+
+/* ─────────────────────────────────────────────
+   MAIN CONTENT
+───────────────────────────────────────────── */
+.main {
+  margin-left: 220px;
+  padding: 32px 36px;
+  min-height: 100vh;
+}
+
+/* ─────────────────────────────────────────────
+   TOPBAR
+───────────────────────────────────────────── */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 32px;
+}
+.topbar-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.3px;
+}
+.topbar-sub { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+
+.badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.badge-green { background: var(--green-light); color: var(--green); }
+.badge-teal  { background: var(--teal-light);  color: var(--teal); }
+.badge-amber { background: var(--amber-light); color: var(--amber); }
+.badge-red   { background: var(--red-light);   color: var(--red); }
+.badge-blue  { background: var(--blue-light);  color: var(--blue); }
+
+/* ─────────────────────────────────────────────
+   SECTIONS
+───────────────────────────────────────────── */
+.section { margin-bottom: 40px; }
+.section-header {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 20px;
+}
+.section-icon {
+  width: 36px; height: 36px;
+  background: var(--teal-light);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px;
+}
+.section-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text);
+}
+.section-subtitle { font-size: 12.5px; color: var(--text-muted); }
+
+/* ─────────────────────────────────────────────
+   CARDS & GRID
+───────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px 24px;
+  box-shadow: var(--shadow);
+}
+
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.grid-2-1 { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+
+/* ─────────────────────────────────────────────
+   STAT CARDS
+───────────────────────────────────────────── */
+.stat-card .stat-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.stat-card .stat-value {
+  font-family: 'DM Mono', monospace;
+  font-size: 32px;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.stat-card .stat-unit {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+.stat-card .stat-trend {
+  font-size: 12px;
+  margin-top: 8px;
+  font-weight: 500;
+}
+.trend-up   { color: var(--red); }
+.trend-down { color: var(--teal); }
+.trend-ok   { color: var(--green); }
+
+/* ─────────────────────────────────────────────
+   BLOCK DIAGRAM
+───────────────────────────────────────────── */
+.block-diagram {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  flex-wrap: wrap;
+  padding: 28px 16px;
+  background: linear-gradient(135deg, #f0f9ff, #e0f5f4);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+.block-box {
+  background: var(--surface);
+  border: 2px solid var(--teal-mid);
+  border-radius: 10px;
+  padding: 12px 18px;
+  text-align: center;
+  min-width: 110px;
+  box-shadow: 0 2px 10px rgba(14,165,160,0.1);
+}
+.block-box.highlight {
+  border-color: var(--blue);
+  background: var(--blue-light);
+}
+.block-box .bb-icon { font-size: 22px; margin-bottom: 4px; }
+.block-box .bb-title { font-size: 12px; font-weight: 600; color: var(--text); }
+.block-box .bb-sub   { font-size: 10.5px; color: var(--text-muted); margin-top: 2px; }
+
+.block-arrow {
+  font-size: 22px;
+  color: var(--teal);
+  margin: 0 6px;
+  font-weight: bold;
+}
+.block-feedback {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--teal);
+  font-weight: 500;
+}
+.feedback-line {
+  height: 2px;
+  flex: 1;
+  max-width: 200px;
+  background: repeating-linear-gradient(90deg, var(--teal) 0, var(--teal) 8px, transparent 8px, transparent 14px);
+}
+
+/* ─────────────────────────────────────────────
+   GAUGE
+───────────────────────────────────────────── */
+.gauge-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.gauge-svg { width: 140px; height: 80px; }
+.gauge-value-text {
+  font-family: 'DM Mono', monospace;
+  font-size: 28px;
+  font-weight: 500;
+  color: var(--text);
+}
+.gauge-label-text {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ─────────────────────────────────────────────
+   PROGRESS BARS
+───────────────────────────────────────────── */
+.prog-bar-wrap { margin-bottom: 14px; }
+.prog-bar-top {
+  display: flex; justify-content: space-between;
+  font-size: 12.5px; font-weight: 500;
+  margin-bottom: 6px;
+  color: var(--text);
+}
+.prog-bar-bg {
+  height: 10px;
+  background: var(--surface2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.prog-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.6s cubic-bezier(.4,0,.2,1);
+}
+
+/* ─────────────────────────────────────────────
+   CONTROL PANEL CARDS
+───────────────────────────────────────────── */
+.formula-box {
+  background: #0f172a;
+  border-radius: 10px;
+  padding: 16px 20px;
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  color: #7dd3fc;
+  line-height: 2;
+}
+.formula-box .f-comment { color: #475569; }
+.formula-box .f-var     { color: #fbbf24; }
+.formula-box .f-op      { color: #f472b6; }
+.formula-box .f-num     { color: #86efac; }
+
+.kv-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13.5px;
+}
+.kv-row:last-child { border-bottom: none; }
+.kv-key   { color: var(--text-muted); font-weight: 500; }
+.kv-value {
+  font-family: 'DM Mono', monospace;
+  font-weight: 500;
+  color: var(--text);
+}
+
+/* ─────────────────────────────────────────────
+   TOGGLE SWITCH
+───────────────────────────────────────────── */
+.toggle-row {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 18px;
+}
+.toggle-label { font-size: 14px; font-weight: 600; color: var(--text); }
+.toggle {
+  position: relative;
+  width: 48px; height: 26px;
+}
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+  position: absolute; inset: 0;
+  background: var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: 0.3s;
+}
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 20px; height: 20px;
+  left: 3px; top: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: 0.3s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+.toggle input:checked + .toggle-slider { background: var(--teal); }
+.toggle input:checked + .toggle-slider::before { transform: translateX(22px); }
+
+/* ─────────────────────────────────────────────
+   SIMULATION BUTTONS
+───────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
+  font-size: 13.5px;
+  font-weight: 600;
+  font-family: 'DM Sans', sans-serif;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+.btn-primary { background: var(--teal); color: white; }
+.btn-primary:hover { background: #0c8f8b; transform: translateY(-1px); }
+.btn-danger  { background: var(--red); color: white; }
+.btn-danger:hover  { background: #b91c1c; }
+.btn-outline {
+  background: transparent;
+  border: 1.5px solid var(--border);
+  color: var(--text-muted);
+}
+.btn-outline:hover { border-color: var(--teal); color: var(--teal); }
+.btn-amber { background: var(--amber); color: white; }
+.btn-amber:hover { background: #b45309; }
+
+.btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+
+/* ─────────────────────────────────────────────
+   HARDWARE COMPONENTS
+───────────────────────────────────────────── */
+.hw-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.hw-card {
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  text-align: center;
+  background: var(--surface);
+}
+.hw-card .hw-icon {
+  font-size: 32px;
+  margin-bottom: 10px;
+  display: block;
+}
+.hw-card .hw-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.hw-card .hw-desc {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* ─────────────────────────────────────────────
+   CHART CONTAINERS
+───────────────────────────────────────────── */
+.chart-wrap {
+  position: relative;
+  height: 220px;
+}
+
+/* ─────────────────────────────────────────────
+   INFO CALLOUT
+───────────────────────────────────────────── */
+.callout {
+  display: flex; gap: 14px;
+  padding: 16px 18px;
+  border-radius: 10px;
+  margin-bottom: 14px;
+}
+.callout-teal { background: var(--teal-light); border-left: 4px solid var(--teal); }
+.callout-blue { background: var(--blue-light); border-left: 4px solid var(--blue); }
+.callout-green { background: var(--green-light); border-left: 4px solid var(--green); }
+.callout-icon { font-size: 20px; flex-shrink: 0; }
+.callout-body .callout-title { font-size: 13.5px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+.callout-body .callout-text  { font-size: 12.5px; color: var(--text-muted); }
+
+/* ─────────────────────────────────────────────
+   BENEFIT TAGS
+───────────────────────────────────────────── */
+.benefit-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.benefit-tag {
+  display: flex; align-items: center; gap: 7px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+.benefit-tag .bt-icon { font-size: 16px; }
+
+/* ─────────────────────────────────────────────
+   FLOW STEPS
+───────────────────────────────────────────── */
+.flow-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.flow-step {
+  display: flex; align-items: flex-start; gap: 16px;
+  padding: 14px 0;
+  position: relative;
+}
+.flow-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 17px; top: 44px;
+  width: 2px;
+  height: calc(100% - 14px);
+  background: var(--border);
+}
+.flow-num {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  background: var(--teal);
+  color: white;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+  z-index: 1;
+  box-shadow: 0 2px 8px rgba(14,165,160,0.3);
+}
+.flow-content .flow-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.flow-content .flow-text  { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
+
+/* ─────────────────────────────────────────────
+   SIMULATION STATUS BANNER
+───────────────────────────────────────────── */
+.sim-banner {
+  padding: 14px 18px;
+  border-radius: 10px;
+  border: 1.5px solid var(--border);
+  background: var(--surface2);
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 20px;
+}
+.sim-banner.active {
+  background: var(--teal-light);
+  border-color: var(--teal-mid);
+}
+.sim-banner-text { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.sim-banner-sub  { font-size: 12px; color: var(--text-muted); }
+
+/* ─────────────────────────────────────────────
+   SCROLLSPY HIGHLIGHT
+───────────────────────────────────────────── */
+.page-section { scroll-margin-top: 20px; }
+
+/* ─────────────────────────────────────────────
+   RESPONSIVE
+───────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .grid-3 { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 800px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding: 20px 16px; }
+  .grid-4, .grid-3, .grid-2, .grid-2-1 { grid-template-columns: 1fr; }
+  .hw-grid { grid-template-columns: 1fr; }
+}
+
+/* ─────────────────────────────────────────────
+   ANIMATIONS
+───────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.card, .stat-card { animation: fadeUp 0.4s ease both; }
+
+/* Pump pulse animation */
+@keyframes pump-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+.pump-active { animation: pump-pulse 1.5s ease infinite; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════
+     SIDEBAR NAVIGATION
+════════════════════════════════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">🫀</div>
+    <h2>Artificial<br>Pancreas System</h2>
+  </div>
+
+  <span class="nav-section-label">Dashboard</span>
+  <a class="nav-item active" href="#overview" onclick="scrollTo('overview', this)">
+    <span class="nav-icon">🏠</span> Overview
+  </a>
+  <a class="nav-item" href="#inputs" onclick="scrollTo('inputs', this)">
+    <span class="nav-icon">📡</span> Sensor Input
+  </a>
+  <a class="nav-item" href="#controller" onclick="scrollTo('controller', this)">
+    <span class="nav-icon">⚙️</span> Controller
+  </a>
+  <a class="nav-item" href="#output" onclick="scrollTo('output', this)">
+    <span class="nav-icon">💉</span> Output
+  </a>
+  <a class="nav-item" href="#simulation" onclick="scrollTo('simulation', this)">
+    <span class="nav-icon">▶️</span> Simulation
+  </a>
+
+  <span class="nav-section-label" style="margin-top:8px">Reference</span>
+  <a class="nav-item" href="#application" onclick="scrollTo('application', this)">
+    <span class="nav-icon">🏥</span> Applications
+  </a>
+  <a class="nav-item" href="#biocontrol" onclick="scrollTo('biocontrol', this)">
+    <span class="nav-icon">🔄</span> Biocontrol
+  </a>
+  <a class="nav-item" href="#hardware" onclick="scrollTo('hardware', this)">
+    <span class="nav-icon">🔌</span> Hardware
+  </a>
+
+  <div class="sidebar-bottom">
+    <div class="status-dot">
+      <div class="dot"></div>
+      <span id="sys-status-text">System Active</span>
+    </div>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════════
+     MAIN CONTENT
+════════════════════════════════════════ -->
+<main class="main">
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div>
+      <div class="topbar-title">Closed Loop Insulin Delivery System</div>
+      <div class="topbar-sub">Biocontrol Systems Project · Artificial Pancreas Dashboard</div>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      <span class="badge badge-green" id="mode-badge">🤖 Auto Mode</span>
+      <span class="badge badge-teal" id="glucose-status-badge">✅ In Range</span>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────── SECTION 1: OVERVIEW -->
+  <div class="page-section section" id="overview">
+    <div class="section-header">
+      <div class="section-icon">🏠</div>
+      <div>
+        <div class="section-title">System Overview</div>
+        <div class="section-subtitle">Closed-loop feedback control for automated glucose regulation</div>
+      </div>
+    </div>
+
+    <!-- Intro callout -->
+    <div class="callout callout-teal" style="margin-bottom:20px;">
+      <span class="callout-icon">ℹ️</span>
+      <div class="callout-body">
+        <div class="callout-title">What is an Artificial Pancreas?</div>
+        <div class="callout-text">
+          An Artificial Pancreas (AP) system automatically regulates blood glucose in diabetic patients by continuously reading glucose levels via a Continuous Glucose Monitor (CGM) and computing the appropriate insulin dose via a control algorithm, which is then delivered by an insulin pump — all without manual intervention.
+        </div>
+      </div>
+    </div>
+
+    <!-- Block Diagram -->
+    <div class="card" style="margin-bottom:20px;">
+      <div style="font-size:13px; font-weight:600; color:var(--text-muted); margin-bottom:16px; text-transform:uppercase; letter-spacing:0.06em;">
+        System Block Diagram
+      </div>
+      <div class="block-diagram">
+        <div class="block-box">
+          <div class="bb-icon">🍽️</div>
+          <div class="bb-title">Patient Input</div>
+          <div class="bb-sub">Meals / Activity</div>
+        </div>
+        <div class="block-arrow">→</div>
+        <div class="block-box">
+          <div class="bb-icon">🩸</div>
+          <div class="bb-title">CGM Sensor</div>
+          <div class="bb-sub">Glucose (mg/dL)</div>
+        </div>
+        <div class="block-arrow">→</div>
+        <div class="block-box highlight">
+          <div class="bb-icon">🧠</div>
+          <div class="bb-title">PID Controller</div>
+          <div class="bb-sub">Computes dose</div>
+        </div>
+        <div class="block-arrow">→</div>
+        <div class="block-box">
+          <div class="bb-icon">💉</div>
+          <div class="bb-title">Insulin Pump</div>
+          <div class="bb-sub">Delivers insulin</div>
+        </div>
+        <div class="block-arrow">→</div>
+        <div class="block-box">
+          <div class="bb-icon">🧍</div>
+          <div class="bb-title">Patient Body</div>
+          <div class="bb-sub">Glucose drops</div>
+        </div>
+        <!-- Feedback arrow -->
+        <div class="block-feedback">
+          <div class="feedback-line"></div>
+          <span>◀ Continuous Feedback Loop (CGM Re-reads Glucose) ◀</span>
+          <div class="feedback-line"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick stats -->
+    <div class="grid-4">
+      <div class="card stat-card">
+        <div class="stat-label">Blood Glucose</div>
+        <div class="stat-value" id="stat-glucose">112</div>
+        <div class="stat-unit">mg/dL</div>
+        <div class="stat-trend trend-ok" id="stat-glucose-trend">✅ Normal range</div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-label">Insulin Rate</div>
+        <div class="stat-value" id="stat-insulin">0.8</div>
+        <div class="stat-unit">units/hr</div>
+        <div class="stat-trend trend-ok" id="stat-insulin-trend">💉 Basal delivery</div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-label">Controller Error</div>
+        <div class="stat-value" id="stat-error">−12</div>
+        <div class="stat-unit">mg/dL from setpoint</div>
+        <div class="stat-trend trend-up" id="stat-error-trend">⚠ Slight above target</div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-label">Pump Status</div>
+        <div class="stat-value" style="font-size:22px;" id="stat-pump">Active</div>
+        <div class="stat-unit">Mode: Automatic</div>
+        <div class="stat-trend trend-ok">🟢 Running</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────── SECTION 2: SENSOR INPUT -->
+  <div class="page-section section" id="inputs">
+    <div class="section-header">
+      <div class="section-icon">📡</div>
+      <div>
+        <div class="section-title">Input Parameters — Sensor Data</div>
+        <div class="section-subtitle">Real-time CGM readings and patient state variables</div>
+      </div>
+    </div>
+
+    <div class="grid-2-1">
+      <!-- Glucose chart -->
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <div style="font-size:14px; font-weight:600;">Blood Glucose vs Time</div>
+          <span class="badge badge-teal" style="font-size:11px;">Live CGM Feed</span>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="glucoseChart"></canvas>
+        </div>
+        <div style="display:flex; gap:16px; margin-top:12px; font-size:12px; color:var(--text-muted);">
+          <span>● Glucose</span>
+          <span style="color:var(--green);">— Target (100)</span>
+          <span style="color:var(--amber);">— Upper (180)</span>
+          <span style="color:var(--red);">— Lower (70)</span>
+        </div>
+      </div>
+
+      <!-- Gauges -->
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        <div class="card" style="text-align:center; flex:1;">
+          <div style="font-size:12px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:10px;">Current Glucose</div>
+          <div class="gauge-wrap">
+            <svg class="gauge-svg" viewBox="0 0 140 80">
+              <!-- Background arc -->
+              <path d="M 10 75 A 60 60 0 0 1 130 75" fill="none" stroke="#e2e8f0" stroke-width="12" stroke-linecap="round"/>
+              <!-- Colored segments -->
+              <path d="M 10 75 A 60 60 0 0 1 48 22" fill="none" stroke="#fca5a5" stroke-width="12" stroke-linecap="round"/>
+              <path d="M 48 22 A 60 60 0 0 1 92 22" fill="none" stroke="#86efac" stroke-width="12" stroke-linecap="round"/>
+              <path d="M 92 22 A 60 60 0 0 1 130 75" fill="none" stroke="#fcd34d" stroke-width="12" stroke-linecap="round"/>
+              <!-- Needle -->
+              <line id="gauge-needle" x1="70" y1="72" x2="70" y2="25" stroke="#1e293b" stroke-width="2.5" stroke-linecap="round"/>
+              <circle cx="70" cy="72" r="5" fill="#1e293b"/>
+            </svg>
+            <div class="gauge-value-text" id="gauge-glucose-val">112</div>
+            <div class="gauge-label-text">mg/dL · In Range</div>
+          </div>
+        </div>
+
+        <div class="card" style="flex:1;">
+          <div style="font-size:12.5px; font-weight:600; color:var(--text-muted); margin-bottom:12px;">Other Inputs</div>
+          <div class="kv-row">
+            <span class="kv-key">Rate of Change</span>
+            <span class="kv-value" id="kv-roc">+0.4 mg/dL/min</span>
+          </div>
+          <div class="kv-row">
+            <span class="kv-key">Meal Intake</span>
+            <span class="kv-value" id="kv-meal">None</span>
+          </div>
+          <div class="kv-row">
+            <span class="kv-key">Activity Level</span>
+            <span class="kv-value" id="kv-activity">Rest</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────── SECTION 3: CONTROLLER -->
+  <div class="page-section section" id="controller">
+    <div class="section-header">
+      <div class="section-icon">⚙️</div>
+      <div>
+        <div class="section-title">Control System — PID Algorithm</div>
+        <div class="section-subtitle">Proportional-Integral-Derivative controller logic</div>
+      </div>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:20px;">
+      <!-- PID Formula -->
+      <div class="card">
+        <div style="font-size:14px; font-weight:600; margin-bottom:14px;">PID Control Formula</div>
+        <div class="formula-box">
+          <span class="f-comment">// PID Output = Insulin dose decision</span><br>
+          <br>
+          <span class="f-var">error</span> <span class="f-op">=</span> <span class="f-var">setpoint</span> <span class="f-op">-</span> <span class="f-var">glucose_now</span><br>
+          <br>
+          <span class="f-var">u(t)</span> <span class="f-op">=</span> <span class="f-var">Kp</span><span class="f-op">·</span><span class="f-var">e(t)</span>
+          <span class="f-op"> + </span><span class="f-var">Ki</span><span class="f-op">·∫</span><span class="f-var">e(t)</span><span class="f-op">dt</span>
+          <span class="f-op"> + </span><span class="f-var">Kd</span><span class="f-op">·(d</span><span class="f-var">e</span><span class="f-op">/dt)</span><br>
+          <br>
+          <span class="f-comment">// Parameters:</span><br>
+          <span class="f-var">Kp</span> <span class="f-op">=</span> <span class="f-num">0.05</span>  <span class="f-comment">// Proportional gain</span><br>
+          <span class="f-var">Ki</span> <span class="f-op">=</span> <span class="f-num">0.002</span> <span class="f-comment">// Integral gain</span><br>
+          <span class="f-var">Kd</span> <span class="f-op">=</span> <span class="f-num">0.10</span>  <span class="f-comment">// Derivative gain</span>
+        </div>
+      </div>
+
+      <!-- Live controller state -->
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+          <div style="font-size:14px; font-weight:600;">Live Controller State</div>
+          <div class="toggle-row" style="margin:0;">
+            <span style="font-size:12px; color:var(--text-muted);">Auto</span>
+            <label class="toggle">
+              <input type="checkbox" id="auto-toggle" checked onchange="toggleMode(this)">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+        <div class="kv-row">
+          <span class="kv-key">Setpoint</span>
+          <span class="kv-value">100 mg/dL</span>
+        </div>
+        <div class="kv-row">
+          <span class="kv-key">Current Glucose</span>
+          <span class="kv-value" id="ctrl-glucose">112 mg/dL</span>
+        </div>
+        <div class="kv-row">
+          <span class="kv-key">Error (e)</span>
+          <span class="kv-value" id="ctrl-error" style="color:var(--amber);">−12 mg/dL</span>
+        </div>
+        <div class="kv-row">
+          <span class="kv-key">P Term</span>
+          <span class="kv-value" id="ctrl-p">0.60</span>
+        </div>
+        <div class="kv-row">
+          <span class="kv-key">I Term</span>
+          <span class="kv-value" id="ctrl-i">0.14</span>
+        </div>
+        <div class="kv-row">
+          <span class="kv-key">D Term</span>
+          <span class="kv-value" id="ctrl-d">0.04</span>
+        </div>
+        <div class="kv-row" style="border-top:2px solid var(--teal-mid); margin-top:4px;">
+          <span class="kv-key" style="font-weight:700;">Control Output u(t)</span>
+          <span class="kv-value" id="ctrl-output" style="color:var(--teal); font-size:16px;">0.78 U/hr</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controller chart -->
+    <div class="card">
+      <div style="font-size:14px; font-weight:600; margin-bottom:16px;">Control Signal — Insulin Delivery Rate vs Time</div>
+      <div class="chart-wrap">
+        <canvas id="controlChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────── SECTION 4: OUTPUT -->
+  <div class="page-section section" id="output">
+    <div class="section-header">
+      <div class="section-icon">💉</div>
+      <div>
+        <div class="section-title">Output — Insulin Pump Actuator</div>
+        <div class="section-subtitle">Real-time delivery parameters and pump status</div>
+      </div>
+    </div>
+
+    <div class="grid-3">
+      <div class="card">
+        <div style="font-size:12px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:14px;">Delivery Rate</div>
+        <div style="font-family:'DM Mono',monospace; font-size:40px; font-weight:500; color:var(--teal); margin-bottom:4px;" id="out-rate">0.80</div>
+        <div style="color:var(--text-muted); font-size:13px; margin-bottom:16px;">Units / Hour</div>
+        <div class="prog-bar-wrap">
+          <div class="prog-bar-top"><span>Delivery progress</span><span id="out-rate-pct">32%</span></div>
+          <div class="prog-bar-bg">
+            <div class="prog-bar-fill" id="out-rate-bar" style="width:32%; background:var(--teal);"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="font-size:12px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:14px;">Total Insulin Delivered</div>
+        <div style="font-family:'DM Mono',monospace; font-size:40px; font-weight:500; color:var(--blue); margin-bottom:4px;" id="out-total">4.2</div>
+        <div style="color:var(--text-muted); font-size:13px; margin-bottom:16px;">Units (session)</div>
+        <div class="prog-bar-wrap">
+          <div class="prog-bar-top"><span>Daily budget</span><span id="out-total-pct">21%</span></div>
+          <div class="prog-bar-bg">
+            <div class="prog-bar-fill" id="out-total-bar" style="width:21%; background:var(--blue);"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px;">
+        <div style="font-size:12px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em;">Pump Status</div>
+        <div id="pump-icon" class="pump-active" style="font-size:52px;">💉</div>
+        <span class="badge badge-green" id="pump-status-badge">● Active</span>
+        <div style="font-size:12.5px; color:var(--text-muted); text-align:center;">
+          Mode: <strong id="pump-mode-text">Automatic</strong><br>
+          Next basal in <strong id="pump-countdown">0:45</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────── SECTION 5: SIMULATION -->
+  <div class="page-section section" id="simulation">
+    <div class="section-header">
+      <div class="section-icon">▶️</div>
+      <div>
+        <div class="section-title">Simulation Panel</div>
+        <div class="section-subtitle">Trigger events and observe closed-loop stabilization</div>
+      </div>
+    </div>
+
+    <div id="sim-banner" class="sim-banner">
+      <div>
+        <div class="sim-banner-text" id="sim-event-text">No active event</div>
+        <div class="sim-banner-sub" id="sim-event-sub">Use the buttons below to simulate events</div>
+      </div>
+      <span class="badge badge-teal" id="sim-state-badge">Idle</span>
+    </div>
+
+    <div class="btn-row" style="margin-bottom:24px;">
+      <button class="btn btn-primary" onclick="startSim()">▶ Start Simulation</button>
+      <button class="btn btn-amber"   onclick="simMealSpike()">🍔 Meal Spike</button>
+      <button class="btn btn-outline" onclick="simExercise()">🏃 Exercise Drop</button>
+      <button class="btn btn-danger"  onclick="stopSim()">⏹ Stop</button>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div style="font-size:14px; font-weight:600; margin-bottom:16px;">Simulation — Glucose Stabilization</div>
+        <div class="chart-wrap" style="height:240px;">
+          <canvas id="simChart"></canvas>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="font-size:14px; font-weight:600; margin-bottom:16px;">System Response Log</div>
+        <div id="event-log" style="font-size:12.5px; color:var(--text-muted); line-height:2; font-family:'DM Mono',monospace; height:240px; overflow-y:auto;">
+          <div>⏺ [00:00] System initialised. Glucose: 100 mg/dL</div>
+          <div>⏺ [00:01] Auto mode active. Basal rate: 0.8 U/hr</div>
+          <div>⏺ [00:02] CGM reading: 112 mg/dL. Error: −12</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────── SECTION 6: APPLICATIONS -->
+  <div class="page-section section" id="application">
+    <div class="section-header">
+      <div class="section-icon">🏥</div>
+      <div>
+        <div class="section-title">Real-World Applications</div>
+        <div class="section-subtitle">Impact of artificial pancreas in diabetes management</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px;">
+      <p style="font-size:14px; color:var(--text-muted); line-height:1.8; margin-bottom:16px;">
+        The Closed Loop Insulin Delivery System represents a major advancement in the management of Type 1 Diabetes (T1D) and insulin-dependent Type 2 Diabetes. Unlike open-loop systems where patients manually calculate and deliver insulin, the AP system continuously senses, computes, and acts — dramatically reducing cognitive burden and clinical risk.
+      </p>
+      <div class="benefit-list">
+        <div class="benefit-tag"><span class="bt-icon">🤖</span> Automatic 24/7 regulation</div>
+        <div class="benefit-tag"><span class="bt-icon">🛡️</span> Prevents hypoglycaemia</div>
+        <div class="benefit-tag"><span class="bt-icon">🧠</span> Reduces cognitive burden</div>
+        <div class="benefit-tag"><span class="bt-icon">😴</span> Safe overnight glucose control</div>
+        <div class="benefit-tag"><span class="bt-icon">📈</span> Improved HbA1c outcomes</div>
+        <div class="benefit-tag"><span class="bt-icon">🔔</span> Alerts for abnormal values</div>
+        <div class="benefit-tag"><span class="bt-icon">🌐</span> Remote monitoring support</div>
+        <div class="benefit-tag"><span class="bt-icon">👶</span> Safe for pediatric use</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="callout callout-blue">
+        <span class="callout-icon">🎯</span>
+        <div class="callout-body">
+          <div class="callout-title">Target Population</div>
+          <div class="callout-text">
+            Primarily used in Type 1 Diabetes patients, where the pancreas produces no insulin at all. Also applicable in advanced Type 2 Diabetes and ICU patients requiring tight glycaemic control.
+          </div>
+        </div>
+      </div>
+      <div class="callout callout-green">
+        <span class="callout-icon">📊</span>
+        <div class="callout-body">
+          <div class="callout-title">Clinical Evidence</div>
+          <div class="callout-text">
+            Clinical trials show AP systems increase Time in Range (TIR) by 10–20% compared to manual methods, significantly reducing dangerous hypoglycaemic episodes.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────── SECTION 7: BIOCONTROL -->
+  <div class="page-section section" id="biocontrol">
+    <div class="section-header">
+      <div class="section-icon">🔄</div>
+      <div>
+        <div class="section-title">Biocontrol System Explanation</div>
+        <div class="section-subtitle">Closed-loop feedback theory applied to biology</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div style="font-size:14px; font-weight:600; margin-bottom:16px;">Closed-Loop Feedback Concept</div>
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="flow-num">1</div>
+            <div class="flow-content">
+              <div class="flow-title">Sensor — CGM reads glucose</div>
+              <div class="flow-text">The Continuous Glucose Monitor measures blood glucose interstitially, every 1–5 minutes, feeding real values to the controller.</div>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-num">2</div>
+            <div class="flow-content">
+              <div class="flow-title">Error Calculation</div>
+              <div class="flow-text">Controller computes: <strong>e(t) = Setpoint − Current Glucose</strong>. A positive error means glucose is too low; negative means too high.</div>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-num">3</div>
+            <div class="flow-content">
+              <div class="flow-title">Controller — PID computes dose</div>
+              <div class="flow-text">PID algorithm calculates insulin rate using proportional (P), integral (I), and derivative (D) components to minimise error and stabilise response.</div>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-num">4</div>
+            <div class="flow-content">
+              <div class="flow-title">Actuator — Pump delivers insulin</div>
+              <div class="flow-text">The insulin pump micro-infuses the computed dose subcutaneously, lowering blood glucose back toward setpoint.</div>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-num">5</div>
+            <div class="flow-content">
+              <div class="flow-title">Feedback — Loop repeats</div>
+              <div class="flow-text">Updated glucose reading feeds back into step 2, continuously correcting and maintaining stability — this is the closed loop.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        <div class="card">
+          <div style="font-size:14px; font-weight:600; margin-bottom:12px;">Control System Concepts</div>
+          <div class="kv-row">
+            <span class="kv-key">Plant (Process)</span>
+            <span class="kv-value">Human body / glucose dynamics</span>
+          </div>
+          <div class="kv-row">
+            <span class="kv-key">Setpoint / Reference</span>
+            <span class="kv-value">100 mg/dL (euglycaemia)</span>
+          </div>
+          <div class="kv-row">
+            <span class="kv-key">Error Signal</span>
+            <span class="kv-value">Setpoint − CGM reading</span>
+          </div>
+          <div class="kv-row">
+            <span class="kv-key">Controller</span>
+            <span class="kv-value">PID / MPC algorithm</span>
+          </div>
+          <div class="kv-row">
+            <span class="kv-key">Actuator</span>
+            <span class="kv-value">Insulin pump</span>
+          </div>
+          <div class="kv-row">
+            <span class="kv-key">Feedback</span>
+            <span class="kv-value">CGM sensor output</span>
+          </div>
+          <div class="kv-row">
+            <span class="kv-key">Disturbances</span>
+            <span class="kv-value">Meals, exercise, stress</span>
+          </div>
+        </div>
+
+        <div class="callout callout-teal">
+          <span class="callout-icon">🎓</span>
+          <div class="callout-body">
+            <div class="callout-title">Stability Analysis</div>
+            <div class="callout-text">
+              A well-tuned PID minimises overshoot (rebound hypoglycaemia) and settling time. The system must be stable — glucose must converge to setpoint without oscillation, achieved by careful selection of Kp, Ki, and Kd gains.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────── SECTION 8: HARDWARE -->
+  <div class="page-section section" id="hardware">
+    <div class="section-header">
+      <div class="section-icon">🔌</div>
+      <div>
+        <div class="section-title">Hardware Components</div>
+        <div class="section-subtitle">Physical implementation of the artificial pancreas</div>
+      </div>
+    </div>
+
+    <div class="hw-grid">
+      <div class="hw-card">
+        <span class="hw-icon">🩺</span>
+        <div class="hw-name">CGM Sensor</div>
+        <div class="hw-desc">Continuous Glucose Monitor (e.g., Dexcom G6). Inserted subcutaneously, reads interstitial glucose every 5 min, transmits via Bluetooth.</div>
+      </div>
+      <div class="hw-card">
+        <span class="hw-icon">🖥️</span>
+        <div class="hw-name">Microcontroller</div>
+        <div class="hw-desc">Raspberry Pi / Arduino Mega. Runs the PID algorithm, receives CGM data, computes insulin dose, and commands the pump driver.</div>
+      </div>
+      <div class="hw-card">
+        <span class="hw-icon">💊</span>
+        <div class="hw-name">Insulin Pump</div>
+        <div class="hw-desc">Miniaturised motor-driven syringe pump. Delivers insulin in micro-boluses (0.025–0.1 U) via subcutaneous cannula, controlled by PWM signals.</div>
+      </div>
+      <div class="hw-card">
+        <span class="hw-icon">📶</span>
+        <div class="hw-name">Wireless Module</div>
+        <div class="hw-desc">Bluetooth LE / Zigbee for CGM→MCU communication. Allows remote monitoring via smartphone app and clinical dashboard.</div>
+      </div>
+      <div class="hw-card">
+        <span class="hw-icon">🔋</span>
+        <div class="hw-name">Power Supply</div>
+        <div class="hw-desc">LiPo battery pack (3.7V, 2500mAh). Provides ~48 hours of operation per charge, with low-power sleep modes between readings.</div>
+      </div>
+      <div class="hw-card">
+        <span class="hw-icon">📱</span>
+        <div class="hw-name">User Interface</div>
+        <div class="hw-desc">Companion mobile app or e-ink display. Shows glucose trends, insulin history, alarms for hypo/hyperglycaemia, and manual override.</div>
+      </div>
+    </div>
+
+    <div class="callout callout-blue">
+      <span class="callout-icon">⚡</span>
+      <div class="callout-body">
+        <div class="callout-title">Signal Flow Summary</div>
+        <div class="callout-text">
+          CGM Electrode → Transceiver → MCU ADC → PID Algorithm → PWM Output → Motor Driver → Pump Motor → Insulin Cannula → Patient. Feedback occurs every 5 minutes, with rapid corrections computed in under 100ms by the microcontroller.
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="margin-top:32px; padding: 20px 0; border-top:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+      <div style="font-size:12.5px; color:var(--text-faint);">
+        Closed Loop Insulin Delivery System · Biocontrol Systems Project · Academic Demo Dashboard
+      </div>
+      <div style="display:flex; gap:8px;">
+        <span class="badge badge-teal">Biomedical Engineering</span>
+        <span class="badge badge-blue">Control Systems</span>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ═══════════════════════════════════════
+     JAVASCRIPT — CHARTS & SIMULATION
+════════════════════════════════════════ -->
+<script>
+// ─────────────────────────────────────────
+// GLOBAL STATE
+// ─────────────────────────────────────────
+const SETPOINT   = 100;  // Target glucose mg/dL
+const MAX_RATE   = 2.5;  // Max insulin rate U/hr
+
+let glucose       = 112;
+let insulinRate   = 0.8;
+let totalInsulin  = 4.2;
+let integralSum   = 0;
+let prevError     = -12;
+let simRunning    = false;
+let simInterval   = null;
+let eventActive   = null;
+let tickCount     = 0;
+let autoMode      = true;
+let countdown     = 45;
+
+// PID gains
+const Kp = 0.05, Ki = 0.002, Kd = 0.10;
+
+// ─────────────────────────────────────────
+// DATA ARRAYS for charts
+// ─────────────────────────────────────────
+const maxPoints = 40;
+function makeTimeLabels() {
+  const arr = [];
+  for (let i = maxPoints; i >= 0; i--) arr.push(`-${i}m`);
+  return arr;
+}
+
+const glucoseHistory  = Array(maxPoints + 1).fill(112).map((v, i) => v + Math.sin(i * 0.4) * 8);
+const insulinHistory  = Array(maxPoints + 1).fill(0.8).map((v, i) => Math.max(0, v + Math.cos(i * 0.4) * 0.2));
+const timeLabels      = makeTimeLabels();
+
+// Simulation chart has its own data
+const simGlucoseData  = [];
+const simInsulinData  = [];
+const simLabels       = [];
+for (let i = 0; i <= 30; i++) {
+  simLabels.push(`T${i}`);
+  simGlucoseData.push(100 + Math.sin(i * 0.3) * 6);
+  simInsulinData.push(0.8 + Math.cos(i * 0.3) * 0.1);
+}
+
+// ─────────────────────────────────────────
+// CHART: Glucose vs Time
+// ─────────────────────────────────────────
+const glucoseCtx = document.getElementById('glucoseChart').getContext('2d');
+const glucoseChart = new Chart(glucoseCtx, {
+  type: 'line',
+  data: {
+    labels: timeLabels,
+    datasets: [
+      {
+        label: 'Glucose (mg/dL)',
+        data: glucoseHistory,
+        borderColor: '#0ea5a0',
+        backgroundColor: 'rgba(14,165,160,0.08)',
+        borderWidth: 2.5,
+        tension: 0.4,
+        fill: true,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+      },
+      {
+        label: 'Target',
+        data: Array(maxPoints + 1).fill(SETPOINT),
+        borderColor: '#16a34a',
+        borderWidth: 1.5,
+        borderDash: [6, 4],
+        pointRadius: 0,
+        fill: false,
+        tension: 0,
+      },
+      {
+        label: 'Upper (180)',
+        data: Array(maxPoints + 1).fill(180),
+        borderColor: '#d97706',
+        borderWidth: 1,
+        borderDash: [4, 4],
+        pointRadius: 0,
+        fill: false,
+        tension: 0,
+      },
+      {
+        label: 'Lower (70)',
+        data: Array(maxPoints + 1).fill(70),
+        borderColor: '#dc2626',
+        borderWidth: 1,
+        borderDash: [4, 4],
+        pointRadius: 0,
+        fill: false,
+        tension: 0,
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { color: '#e2e8f0' }, ticks: { font: { size: 10 }, maxTicksLimit: 8 } },
+      y: {
+        min: 50, max: 280,
+        grid: { color: '#e2e8f0' },
+        ticks: { font: { size: 10 } }
+      }
+    }
+  }
+});
+
+// ─────────────────────────────────────────
+// CHART: Insulin Rate vs Time
+// ─────────────────────────────────────────
+const controlCtx = document.getElementById('controlChart').getContext('2d');
+const controlChart = new Chart(controlCtx, {
+  type: 'bar',
+  data: {
+    labels: timeLabels,
+    datasets: [{
+      label: 'Insulin Rate (U/hr)',
+      data: insulinHistory,
+      backgroundColor: 'rgba(37,99,235,0.6)',
+      borderColor: '#2563eb',
+      borderWidth: 1,
+      borderRadius: 3,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { display: false }, ticks: { font: { size: 10 }, maxTicksLimit: 8 } },
+      y: { min: 0, max: 3, grid: { color: '#e2e8f0' }, ticks: { font: { size: 10 } } }
+    }
+  }
+});
+
+// ─────────────────────────────────────────
+// CHART: Simulation
+// ─────────────────────────────────────────
+const simCtx = document.getElementById('simChart').getContext('2d');
+const simChart = new Chart(simCtx, {
+  type: 'line',
+  data: {
+    labels: simLabels,
+    datasets: [
+      {
+        label: 'Glucose (mg/dL)',
+        data: simGlucoseData,
+        borderColor: '#0ea5a0',
+        backgroundColor: 'rgba(14,165,160,0.07)',
+        borderWidth: 2.5,
+        tension: 0.4,
+        fill: true,
+        pointRadius: 2,
+        yAxisID: 'y',
+      },
+      {
+        label: 'Insulin (U/hr)',
+        data: simInsulinData,
+        borderColor: '#2563eb',
+        backgroundColor: 'rgba(37,99,235,0.07)',
+        borderWidth: 2,
+        tension: 0.4,
+        fill: false,
+        pointRadius: 2,
+        yAxisID: 'y1',
+      },
+      {
+        label: 'Setpoint',
+        data: Array(31).fill(SETPOINT),
+        borderColor: '#16a34a',
+        borderWidth: 1.5,
+        borderDash: [6, 4],
+        pointRadius: 0,
+        fill: false,
+        yAxisID: 'y',
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: true, labels: { font: { size: 11 } } } },
+    scales: {
+      x: { grid: { color: '#e2e8f0' }, ticks: { font: { size: 10 } } },
+      y:  { min: 60, max: 300, position: 'left',  grid: { color: '#e2e8f0' }, ticks: { font: { size: 10 } } },
+      y1: { min: 0,  max: 4,   position: 'right', grid: { display: false }, ticks: { font: { size: 10 } } }
+    }
+  }
+});
+
+// ─────────────────────────────────────────
+// PID COMPUTATION
+// ─────────────────────────────────────────
+function computePID(g) {
+  const error = SETPOINT - g;
+  integralSum += error * (1/60);   // dt = 1 minute
+  const derivative = (error - prevError) / (1/60);
+  prevError = error;
+  const p = Kp * error;
+  const i = Ki * integralSum;
+  const d = Kd * derivative;
+  const output = Math.max(0, Math.min(MAX_RATE, p + i + d + 0.8)); // + 0.8 basal
+  return { error, p, i, d, output };
+}
+
+// ─────────────────────────────────────────
+// UPDATE GAUGE NEEDLE
+// ─────────────────────────────────────────
+function updateGauge(g) {
+  // Gauge arc goes from 50 to 300 mg/dL mapped to -180° to 0°
+  const clamp = Math.min(300, Math.max(50, g));
+  const angle = ((clamp - 50) / 250) * 180 - 180; // -180 to 0
+  const rad = (angle * Math.PI) / 180;
+  const cx = 70, cy = 72, r = 47;
+  const nx = cx + r * Math.cos(rad);
+  const ny = cy + r * Math.sin(rad);
+  const needle = document.getElementById('gauge-needle');
+  if (needle) {
+    needle.setAttribute('x2', nx.toFixed(1));
+    needle.setAttribute('y2', ny.toFixed(1));
+  }
+  document.getElementById('gauge-glucose-val').textContent = Math.round(g);
+}
+
+// ─────────────────────────────────────────
+// UPDATE ALL UI ELEMENTS
+// ─────────────────────────────────────────
+function updateUI(g, pid) {
+  // Stat cards
+  document.getElementById('stat-glucose').textContent = Math.round(g);
+  document.getElementById('stat-insulin').textContent = insulinRate.toFixed(2);
+  document.getElementById('stat-error').textContent = (pid.error >= 0 ? '+' : '') + Math.round(pid.error);
+
+  // Glucose status badge
+  const badge = document.getElementById('glucose-status-badge');
+  if (g < 70)       { badge.className = 'badge badge-red';   badge.textContent = '🚨 Low (Hypo)'; }
+  else if (g > 180) { badge.className = 'badge badge-amber'; badge.textContent = '⚠️ High (Hyper)'; }
+  else              { badge.className = 'badge badge-green'; badge.textContent = '✅ In Range'; }
+
+  // Error trend
+  const errTrend = document.getElementById('stat-error-trend');
+  if (Math.abs(pid.error) < 10)  { errTrend.className='stat-trend trend-ok'; errTrend.textContent='✅ Near target'; }
+  else if (pid.error < 0) { errTrend.className='stat-trend trend-up'; errTrend.textContent='⚠ Above target'; }
+  else                    { errTrend.className='stat-trend trend-down'; errTrend.textContent='⬇ Below target'; }
+
+  // Controller
+  document.getElementById('ctrl-glucose').textContent = Math.round(g) + ' mg/dL';
+  document.getElementById('ctrl-error').textContent = (pid.error >= 0 ? '+' : '') + pid.error.toFixed(1) + ' mg/dL';
+  document.getElementById('ctrl-p').textContent = pid.p.toFixed(3);
+  document.getElementById('ctrl-i').textContent = pid.i.toFixed(3);
+  document.getElementById('ctrl-d').textContent = pid.d.toFixed(3);
+  document.getElementById('ctrl-output').textContent = pid.output.toFixed(2) + ' U/hr';
+
+  // Output section
+  const ratePct = Math.min(100, (insulinRate / MAX_RATE) * 100);
+  document.getElementById('out-rate').textContent = insulinRate.toFixed(2);
+  document.getElementById('out-rate-pct').textContent = Math.round(ratePct) + '%';
+  document.getElementById('out-rate-bar').style.width = ratePct + '%';
+
+  const totalPct = Math.min(100, (totalInsulin / 20) * 100);
+  document.getElementById('out-total').textContent = totalInsulin.toFixed(1);
+  document.getElementById('out-total-pct').textContent = Math.round(totalPct) + '%';
+  document.getElementById('out-total-bar').style.width = totalPct + '%';
+
+  // Rate bar color by level
+  const rateBar = document.getElementById('out-rate-bar');
+  if (ratePct > 80) rateBar.style.background = 'var(--red)';
+  else if (ratePct > 50) rateBar.style.background = 'var(--amber)';
+  else rateBar.style.background = 'var(--teal)';
+
+  // Gauge
+  updateGauge(g);
+
+  // Rate of change
+  const roc = (glucoseHistory[glucoseHistory.length - 1] - glucoseHistory[glucoseHistory.length - 3]) / 2;
+  document.getElementById('kv-roc').textContent = (roc >= 0 ? '+' : '') + roc.toFixed(1) + ' mg/dL/min';
+
+  // Countdown
+  countdown--;
+  if (countdown <= 0) countdown = 60;
+  const mm = Math.floor(countdown / 60);
+  const ss = countdown % 60;
+  document.getElementById('pump-countdown').textContent = mm + ':' + String(ss).padStart(2, '0');
+}
+
+// ─────────────────────────────────────────
+// MAIN TICK — runs every second
+// ─────────────────────────────────────────
+function tick() {
+  tickCount++;
+  const t = tickCount;
+
+  // Natural glucose drift toward 100 with noise
+  const drift = (SETPOINT - glucose) * 0.02;
+  const noise = (Math.random() - 0.5) * 2.5;
+  glucose += drift + noise;
+
+  // Event modifiers
+  if (eventActive === 'meal') {
+    // Meal spike: glucose rises for ~20 ticks then system stabilises
+    if (t < 20) glucose += 3.5;
+    else if (t < 40) glucose += 1.0;
+    document.getElementById('kv-meal').textContent = 'Large (80g CHO)';
+  } else if (eventActive === 'exercise') {
+    // Exercise: glucose drops
+    if (t < 15) glucose -= 2.0;
+    else if (t < 30) glucose -= 0.8;
+    document.getElementById('kv-activity').textContent = 'Moderate (Run)';
+  }
+
+  glucose = Math.max(40, Math.min(350, glucose));
+
+  // PID
+  const pid = computePID(glucose);
+  insulinRate = autoMode ? pid.output : 0.8; // Manual mode: fixed basal
+  totalInsulin += insulinRate / 3600;         // Accumulate over time
+
+  // Push to charts
+  glucoseHistory.shift();  glucoseHistory.push(glucose);
+  insulinHistory.shift();  insulinHistory.push(insulinRate);
+
+  // Sim chart (only adds when running)
+  if (simRunning && simGlucoseData.length < 80) {
+    simGlucoseData.push(glucose);
+    simInsulinData.push(insulinRate);
+    simLabels.push('T' + t);
+  }
+
+  // Update chart data
+  glucoseChart.data.datasets[0].data = [...glucoseHistory];
+  glucoseChart.update('none');
+  controlChart.data.datasets[0].data = [...insulinHistory];
+  controlChart.update('none');
+
+  if (simRunning) {
+    simChart.data.labels = [...simLabels];
+    simChart.data.datasets[0].data = [...simGlucoseData];
+    simChart.data.datasets[1].data = [...simInsulinData];
+    simChart.data.datasets[2].data = Array(simGlucoseData.length).fill(SETPOINT);
+    simChart.update('none');
+  }
+
+  updateUI(glucose, pid);
+
+  // Event log
+  if (t % 5 === 0) addLog(`CGM: ${Math.round(glucose)} mg/dL | Insulin: ${insulinRate.toFixed(2)} U/hr | Error: ${pid.error.toFixed(1)}`);
+}
+
+// ─────────────────────────────────────────
+// LOG HELPER
+// ─────────────────────────────────────────
+function addLog(msg) {
+  const log = document.getElementById('event-log');
+  const mm = String(Math.floor(tickCount / 60)).padStart(2, '0');
+  const ss = String(tickCount % 60).padStart(2, '0');
+  const div = document.createElement('div');
+  div.textContent = `⏺ [${mm}:${ss}] ${msg}`;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+  // Keep last 50 entries
+  while (log.children.length > 50) log.removeChild(log.firstChild);
+}
+
+// ─────────────────────────────────────────
+// SIMULATION CONTROLS
+// ─────────────────────────────────────────
+function startSim() {
+  if (simRunning) return;
+  simRunning = true;
+  tickCount = 0;
+  integralSum = 0;
+  eventActive = null;
+  simGlucoseData.length = 0;
+  simInsulinData.length = 0;
+  simLabels.length = 0;
+  simInterval = setInterval(tick, 800); // tick every 0.8s for demo speed
+
+  document.getElementById('sim-banner').classList.add('active');
+  document.getElementById('sim-event-text').textContent = 'Simulation Running';
+  document.getElementById('sim-event-sub').textContent = 'Glucose stabilising toward 100 mg/dL...';
+  document.getElementById('sim-state-badge').className = 'badge badge-green';
+  document.getElementById('sim-state-badge').textContent = '▶ Running';
+  addLog('Simulation started. Auto PID mode active.');
+}
+
+function stopSim() {
+  simRunning = false;
+  eventActive = null;
+  if (simInterval) clearInterval(simInterval);
+  document.getElementById('sim-banner').classList.remove('active');
+  document.getElementById('sim-event-text').textContent = 'Simulation Stopped';
+  document.getElementById('sim-event-sub').textContent = 'Press Start to restart simulation';
+  document.getElementById('sim-state-badge').className = 'badge badge-teal';
+  document.getElementById('sim-state-badge').textContent = 'Idle';
+  document.getElementById('kv-meal').textContent = 'None';
+  document.getElementById('kv-activity').textContent = 'Rest';
+  addLog('Simulation stopped by user.');
+}
+
+function simMealSpike() {
+  if (!simRunning) startSim();
+  eventActive = 'meal';
+  tickCount = 0;
+  glucose = 105;
+  document.getElementById('sim-event-text').textContent = 'Event: Meal Spike (80g Carbohydrates)';
+  document.getElementById('sim-event-sub').textContent = 'Glucose rising — PID increasing insulin rate...';
+  document.getElementById('sim-state-badge').className = 'badge badge-amber';
+  document.getElementById('sim-state-badge').textContent = '🍔 Meal Event';
+  addLog('EVENT: Meal spike triggered. Glucose expected to rise to ~200–250 mg/dL.');
+}
+
+function simExercise() {
+  if (!simRunning) startSim();
+  eventActive = 'exercise';
+  tickCount = 0;
+  glucose = 120;
+  document.getElementById('sim-event-text').textContent = 'Event: Exercise Drop (Moderate Activity)';
+  document.getElementById('sim-event-sub').textContent = 'Glucose falling — PID reducing insulin rate...';
+  document.getElementById('sim-state-badge').className = 'badge badge-blue';
+  document.getElementById('sim-state-badge').textContent = '🏃 Exercise Event';
+  addLog('EVENT: Exercise drop triggered. PID will reduce insulin to prevent hypoglycaemia.');
+}
+
+// ─────────────────────────────────────────
+// TOGGLE MODE
+// ─────────────────────────────────────────
+function toggleMode(el) {
+  autoMode = el.checked;
+  const modeBadge = document.getElementById('mode-badge');
+  modeBadge.textContent = autoMode ? '🤖 Auto Mode' : '🖐 Manual Mode';
+  modeBadge.className = autoMode ? 'badge badge-green' : 'badge badge-amber';
+  document.getElementById('pump-mode-text').textContent = autoMode ? 'Automatic' : 'Manual';
+  addLog(autoMode ? 'Switched to AUTO mode. PID control active.' : 'Switched to MANUAL mode. Fixed basal rate.');
+}
+
+// ─────────────────────────────────────────
+// SIDEBAR SCROLL
+// ─────────────────────────────────────────
+function scrollTo(id, el) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById(id).scrollIntoView({ behavior: 'smooth' });
+  return false;
+}
+
+// ─────────────────────────────────────────
+// INIT: Start background ticking at slower pace
+// ─────────────────────────────────────────
+window.addEventListener('load', () => {
+  // Background slow tick even before simulation started
+  setInterval(() => {
+    if (!simRunning) {
+      const pid = computePID(glucose);
+      const drift = (SETPOINT - glucose) * 0.015;
+      const noise = (Math.random() - 0.5) * 1.5;
+      glucose = Math.max(60, Math.min(250, glucose + drift + noise));
+      insulinRate = pid.output;
+      glucoseHistory.shift(); glucoseHistory.push(glucose);
+      insulinHistory.shift(); insulinHistory.push(insulinRate);
+      glucoseChart.data.datasets[0].data = [...glucoseHistory];
+      glucoseChart.update('none');
+      controlChart.data.datasets[0].data = [...insulinHistory];
+      controlChart.update('none');
+      updateUI(glucose, pid);
+      tickCount++;
+    }
+  }, 1500);
+
+  // Initial gauge
+  updateGauge(glucose);
+});
+</script>
+</body>
+</html>
